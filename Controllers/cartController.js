@@ -2,7 +2,7 @@ import Cart from "../Models/cartModel.js";
 import Product from "../Models/Product.js";
 
 // Add item to cart
-export const addToCart = async (req, res) => {
+const addToCart = async (req, res) => {
   try {
     const { productId, quantity } = req.body;
     const userId = req.user._id; // assuming auth middleware sets req.user
@@ -46,7 +46,7 @@ export const addToCart = async (req, res) => {
 };
 
 // Get user cart
-export const getCart = async (req, res) => {
+const getCart = async (req, res) => {
   try {
     console.log("Decoded user:", req.user); // 👈 check if user is attached
     const userId = req.user.id; // from authMiddleware
@@ -66,8 +66,7 @@ export const getCart = async (req, res) => {
 
 
 
-// Remove item
-export const removeFromCart = async (req, res) => {
+const removeFromCart = async (req, res) => {
   try {
     const userId = req.user.id; 
     const { productId } = req.params;
@@ -101,7 +100,7 @@ export const removeFromCart = async (req, res) => {
 };
 
 // Update item quantity
-export const updateQuantity = async (req, res) => {
+const updateQuantity = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId, quantity } = req.body;
@@ -128,3 +127,5 @@ export const updateQuantity = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+module.exports = {addToCart, getCart, removeFromCart, updateQuantity};
