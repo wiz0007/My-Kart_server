@@ -15,7 +15,7 @@ console.log("ENV loaded:", {
 
 const app = express();
 app.use(cors({
-  origin: 'https://your-frontend.vercel.app', // replace with your Vercel URL
+  origin: 'https://my-kart-client.vercel.app/', // replace with your Vercel URL
   credentials: true
 }));
 
