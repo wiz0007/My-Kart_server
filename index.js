@@ -14,7 +14,11 @@ console.log("ENV loaded:", {
 });
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: 'https://your-frontend.vercel.app', // replace with your Vercel URL
+  credentials: true
+}));
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
