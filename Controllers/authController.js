@@ -42,7 +42,7 @@ exports.register = async (req, res) => {
       verificationToken: token,
     });
 
-    const verifyURL = `${FRONTEND_URL}/verify-email/${token}`;
+    const verifyURL = `https://mykart-henna.vercel.app/verify-email/${token}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
