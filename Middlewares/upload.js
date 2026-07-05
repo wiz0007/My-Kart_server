@@ -1,29 +1,34 @@
-const multer = require('multer');
-const path = require('path');
+﻿const multer = require("multer");
+const path = require("path");
+const crypto = require("crypto");
 
-// Storage setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
+    const safeExt = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${safeExt}`);
+  },
 });
 
-// File filter (optional)
 const fileFilter = (req, file, cb) => {
-  const allowed = ['image/jpeg', 'image/png', 'image/jpg'];
-  if (allowed.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Unsupported file type'), false);
+  const allowed = new Set(["image/jpeg", "image/png", "image/jpg", "image/webp"]);
+
+  if (allowed.has(file.mimetype)) {
+    return cb(null, true);
   }
+
+  return cb(new Error("Unsupported file type"), false);
 };
 
 const upload = multer({
   storage,
-  fileFilter
+  fileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024,
+    files: 1,
+  },
 });
 
 module.exports = upload;

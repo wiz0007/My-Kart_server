@@ -1,35 +1,28 @@
-const jwt = require("jsonwebtoken");
 const User = require("../Models/userSchema");
-
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key_here";
+const { verifyAccessToken } = require("../Utils/authToken");
+const { getAccessCookie } = require("../Utils/authCookie");
 
 const authMiddleware = async (req, res, next) => {
-  let token;
+  const token = getAccessCookie(req);
 
-  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-
-      // Verify token
-      const decoded = jwt.verify(token, JWT_SECRET);
-
-      // Find user (exclude password field)
-      req.user = await User.findById(decoded.id).select("-password");
-
-      if (!req.user) {
-        return res.status(401).json({ msg: "User not found. Please signup or login first." });
-      }
-
-      return next();
-    } catch (err) {
-      return res.status(401).json({ msg: "Invalid token. Please login again." });
-    }
+  if (!token) {
+    return res.status(401).json({ msg: "Authentication required" });
   }
 
-  // If no token
-  return res.status(401).json({ msg: "Not authorized. Please signup or login to continue." });
+  try {
+    const decoded = verifyAccessToken(token);
+    const userId = decoded.sub || decoded.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(401).json({ msg: "Authentication required" });
+    }
+
+    req.user = user;
+    return next();
+  } catch (err) {
+    return res.status(401).json({ msg: "Invalid or expired token" });
+  }
 };
 
 module.exports = authMiddleware;
-
-

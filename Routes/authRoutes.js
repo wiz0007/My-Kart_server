@@ -4,13 +4,32 @@ const {
   register,
   login,
   verifyEmail,
-  googleLogin
+  forgotPassword,
+  resetPassword,
+  googleLogin,
+  csrf,
+  refresh,
+  me,
+  logout,
 } = require("../Controllers/authController");
+const authMiddleware = require("../Middlewares/authMiddleware");
+const { createRateLimiter } = require("../Middlewares/security");
 
-router.post("/register", register);
-router.post("/login", login);
-router.get("/verify-email/:token", verifyEmail);
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
+  message: "Too many auth attempts. Please try again later.",
+});
 
-router.post("/google", googleLogin);
+router.get("/csrf", csrf);
+router.get("/me", authMiddleware, me);
+router.post("/logout", logout);
+router.post("/refresh", refresh);
+router.post("/register", authLimiter, register);
+router.post("/login", authLimiter, login);
+router.post("/forgot-password", authLimiter, forgotPassword);
+router.post("/reset-password/:token", authLimiter, resetPassword);
+router.get("/verify-email/:token", authLimiter, verifyEmail);
+router.post("/google", authLimiter, googleLogin);
 
 module.exports = router;

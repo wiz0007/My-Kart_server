@@ -1,11 +1,26 @@
-const Cart = require("../Models/cartModel")
+﻿const mongoose = require("mongoose");
+const Cart = require("../Models/cartModel");
 const Product = require("../Models/Product");
 
-// Add item to cart
+const normalizeQuantity = (quantity) => {
+  const parsed = Number(quantity);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 99) return null;
+  return parsed;
+};
+
+const recalculateTotal = (cart) => {
+  cart.totalAmount = cart.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+};
+
 const addToCart = async (req, res) => {
   try {
-    const { productId, quantity } = req.body;
-    const userId = req.user._id; // assuming auth middleware sets req.user
+    const { productId } = req.body;
+    const quantity = normalizeQuantity(req.body.quantity || 1);
+    const userId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(productId) || !quantity) {
+      return res.status(400).json({ message: "Invalid cart item" });
+    }
 
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Product not found" });
@@ -16,116 +31,95 @@ const addToCart = async (req, res) => {
       cart = new Cart({ user: userId, items: [] });
     }
 
-    const itemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId
-    );
+    const itemIndex = cart.items.findIndex((item) => item.product.toString() === productId);
 
     if (itemIndex > -1) {
-      // Update quantity
-      cart.items[itemIndex].quantity += quantity;
+      cart.items[itemIndex].quantity = Math.min(cart.items[itemIndex].quantity + quantity, 99);
       cart.items[itemIndex].price = product.price;
     } else {
-      cart.items.push({
-        product: productId,
-        quantity,
-        price: product.price,
-      });
+      cart.items.push({ product: productId, quantity, price: product.price });
     }
 
-    // Recalculate total
-    cart.totalAmount = cart.items.reduce(
-      (acc, item) => acc + item.price * item.quantity,
-      0
-    );
-
+    recalculateTotal(cart);
     await cart.save();
-    res.json(cart);
+
+    const populatedCart = await Cart.findOne({ user: userId }).populate("items.product");
+    return res.json(populatedCart);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error adding to cart:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// Get user cart
 const getCart = async (req, res) => {
   try {
-    console.log("Decoded user:", req.user); // 👈 check if user is attached
-    const userId = req.user.id; // from authMiddleware
-
+    const userId = req.user._id;
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
 
     if (!cart) {
       return res.json({ items: [], totalAmount: 0 });
     }
 
-    res.json(cart);
+    return res.json(cart);
   } catch (error) {
-    console.error("Error in getCart:", error.message);
-    res.status(500).json({ error: "Error fetching cart", details: error.message });
+    console.error("Error fetching cart:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 };
-
-
 
 const removeFromCart = async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user._id;
     const { productId } = req.params;
 
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      return res.status(404).json({ message: "Cart not found" });
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: "Invalid productId" });
     }
 
-    // remove the item
-    cart.items = cart.items.filter(
-      (item) => item.product.toString() !== productId
-    );
-
-    // recalculate totalAmount
-    cart.totalAmount = cart.items.reduce(
-      (acc, item) => acc + item.price * item.quantity,
-      0
-    );
-
-    await cart.save();
-
-    // repopulate products before sending back
-    cart = await Cart.findOne({ user: userId }).populate("items.product");
-
-    res.json(cart);
-  } catch (err) {
-    console.error("Error in removeFromCart:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// Update item quantity
-const updateQuantity = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { productId, quantity } = req.body;
-
     let cart = await Cart.findOne({ user: userId });
-
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    const itemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId
-    );
-
-    if (itemIndex > -1) {
-      cart.items[itemIndex].quantity = quantity;
-    }
-
+    cart.items = cart.items.filter((item) => item.product.toString() !== productId);
+    recalculateTotal(cart);
     await cart.save();
 
-    // 🔑 repopulate product details before sending back
     cart = await Cart.findOne({ user: userId }).populate("items.product");
-
-    res.json(cart);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.json(cart);
+  } catch (err) {
+    console.error("Error removing from cart:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-module.exports = {addToCart, getCart, removeFromCart, updateQuantity};
+const updateQuantity = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId } = req.body;
+    const quantity = normalizeQuantity(req.body.quantity);
+
+    if (!mongoose.Types.ObjectId.isValid(productId) || !quantity) {
+      return res.status(400).json({ message: "Invalid cart item" });
+    }
+
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) return res.status(404).json({ message: "Cart not found" });
+
+    const itemIndex = cart.items.findIndex((item) => item.product.toString() === productId);
+
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: "Cart item not found" });
+    }
+
+    cart.items[itemIndex].quantity = quantity;
+    recalculateTotal(cart);
+    await cart.save();
+
+    cart = await Cart.findOne({ user: userId }).populate("items.product");
+    return res.json(cart);
+  } catch (error) {
+    console.error("Error updating cart:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = { addToCart, getCart, removeFromCart, updateQuantity };

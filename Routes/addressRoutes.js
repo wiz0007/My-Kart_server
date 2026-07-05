@@ -1,55 +1,76 @@
-const express = require("express");
+﻿const express = require("express");
 const mongoose = require("mongoose");
+const Address = require("../Models/addresschema");
+const authMiddleware = require("../Middlewares/authMiddleware");
+const { validateObjectId } = require("../Middlewares/security");
+
 const router = express.Router();
-const Address = require("../Models/addresschema"); // ensure correct path
 
-// ✅ POST: Add a new address
-router.post("/", async (req, res) => {
+const cleanText = (value) => String(value || "").trim().replace(/\s+/g, " ");
+
+const assertSameUser = (req, res, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    res.status(400).json({ message: "Invalid userId" });
+    return false;
+  }
+
+  if (req.user._id.toString() !== userId.toString()) {
+    res.status(403).json({ message: "Address access denied" });
+    return false;
+  }
+
+  return true;
+};
+
+router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { userId, fullName, street, city, state, postalCode, country, phone } = req.body;
+    const userId = req.body.userId || req.user._id.toString();
 
-    // Validate required fields
-    if (!userId || !fullName || !street || !city || !state || !postalCode || !country || !phone) {
+    if (!assertSameUser(req, res, userId)) return;
+
+    const addressInput = {
+      fullName: cleanText(req.body.fullName),
+      street: cleanText(req.body.street),
+      city: cleanText(req.body.city),
+      state: cleanText(req.body.state),
+      postalCode: cleanText(req.body.postalCode),
+      country: cleanText(req.body.country),
+      phone: cleanText(req.body.phone),
+    };
+
+    if (Object.values(addressInput).some((value) => !value)) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid userId" });
+    if (addressInput.phone.length < 7 || addressInput.phone.length > 20) {
+      return res.status(400).json({ message: "Invalid phone" });
     }
 
     const address = new Address({
-      user: new mongoose.Types.ObjectId(userId),
-      fullName,
-      street,
-      city,
-      state,
-      postalCode,
-      country,
-      phone,
+      user: req.user._id,
+      ...addressInput,
     });
 
     const savedAddress = await address.save();
-    res.status(201).json(savedAddress); // return the created address
+    return res.status(201).json(savedAddress);
   } catch (error) {
     console.error("Error creating address:", error);
-    res.status(500).json({ message: "Server error while adding address" });
+    return res.status(500).json({ message: "Server error while adding address" });
   }
 });
 
-// ✅ GET: Get all addresses for a user
-router.get("/:userId", async (req, res) => {
+router.get("/:userId", authMiddleware, validateObjectId("userId"), async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // ✅ If schema already has `type: mongoose.Schema.Types.ObjectId`, no need to wrap
-    const addresses = await Address.find({ user: userId });
+    if (!assertSameUser(req, res, userId)) return;
 
-    res.status(200).json(addresses);
+    const addresses = await Address.find({ user: req.user._id }).sort({ createdAt: -1 });
+    return res.status(200).json(addresses);
   } catch (err) {
     console.error("Error fetching addresses:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
 module.exports = router;
-
