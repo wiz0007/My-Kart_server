@@ -7,6 +7,7 @@ validateConfig();
 const express = require("express");
 const cors = require("cors");
 const connectDB = require("./db");
+
 const productRoutes = require("./Routes/productRoutes");
 const authRoutes = require("./Routes/authRoutes");
 const cartRoutes = require("./Routes/cartRoutes");

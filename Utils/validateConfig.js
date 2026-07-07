@@ -7,9 +7,11 @@ const weakSecretValues = new Set([
   "changeme",
 ]);
 
-const requiredInProduction = ["MONGO_URL", "JWT_SECRET", "ADMIN_API_KEY"];
+const requiredInProduction = ["MONGO_URL", "JWT_SECRET"];
 
 const isProduction = () => process.env.NODE_ENV === "production";
+
+const hasValue = (value) => Boolean(String(value || "").trim());
 
 const isWeakSecret = (value) => {
   if (!value) return true;
@@ -35,12 +37,12 @@ const validateConfig = () => {
       if (!process.env[key]) errors.push(`${key} is required in production`);
     }
 
-    if (isWeakSecret(process.env.JWT_SECRET)) {
+    if (hasValue(process.env.JWT_SECRET) && isWeakSecret(process.env.JWT_SECRET)) {
       errors.push("JWT_SECRET must be at least 32 characters and not a placeholder");
     }
 
-    if (isWeakSecret(process.env.ADMIN_API_KEY)) {
-      errors.push("ADMIN_API_KEY must be at least 32 characters and not a placeholder");
+    if (hasValue(process.env.ADMIN_API_KEY) && isWeakSecret(process.env.ADMIN_API_KEY)) {
+      errors.push("ADMIN_API_KEY must be at least 32 characters and not a placeholder when configured");
     }
 
     const allowedOrigins = getConfiguredOrigins();
